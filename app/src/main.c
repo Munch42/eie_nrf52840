@@ -40,20 +40,22 @@ int main(void) {
     if (ret0 < 0) {
         return ret0;
     }
-    ret1 = gpio_pin_configure_dt(&led1, GPIO_OUTPUT_INACTIVE);
+    ret1 = gpio_pin_configure_dt(&led1, GPIO_OUTPUT_ACTIVE);
     if (ret1 < 0) {return ret1;}
-    ret2 = gpio_pin_configure_dt(&led2, GPIO_OUTPUT_INACTIVE);
+    ret2 = gpio_pin_configure_dt(&led2, GPIO_OUTPUT_ACTIVE);
     if (ret2 < 0) {return ret2;}
     ret3 = gpio_pin_configure_dt(&led3, GPIO_OUTPUT_ACTIVE);
     if (ret3 < 0) {return ret3;}
     
     while(1) {
         gpio_pin_toggle_dt(&led0); // Toggle the led0
-        gpio_pin_toggle_dt(&led1); // Toggle the led0
-        gpio_pin_toggle_dt(&led2); // Toggle the led0
-        gpio_pin_toggle_dt(&led3); // Toggle the led0
+        k_msleep(500);
+        gpio_pin_toggle_dt(&led0); // Toggle the led0 again to be twice as fast
+        gpio_pin_toggle_dt(&led1); // Toggle the led1
+        gpio_pin_toggle_dt(&led2); // Toggle the led2
+        gpio_pin_toggle_dt(&led3); // Toggle the led3
 
-        k_msleep(1000);
+        k_msleep(500);
     }
 
     return 0;
