@@ -48,14 +48,12 @@ int main(void) {
     if (ret3 < 0) {return ret3;}
     
     while(1) {
-        gpio_pin_toggle_dt(&led0); // Toggle the led0
-        k_msleep(500);
-        gpio_pin_toggle_dt(&led0); // Toggle the led0 again to be twice as fast
-        gpio_pin_toggle_dt(&led1); // Toggle the led1
-        gpio_pin_toggle_dt(&led2); // Toggle the led2
-        gpio_pin_toggle_dt(&led3); // Toggle the led3
-
-        k_msleep(500);
+        struct gpio_dt_spec ledArray[] = {led0, led1, led2, led3};
+        // Loop through the four LED's toggling them on/off
+        for (uint8_t i = 0; i < 4; i++){
+            gpio_pin_toggle_dt(&ledArray[i]);
+            k_msleep(250);
+        }
     }
 
     return 0;
