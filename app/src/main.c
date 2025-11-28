@@ -57,19 +57,19 @@ BT_GATT_SERVICE_DEFINE(
     BT_GATT_PRIMARY_SERVICE(&ble_custom_service_uuid),  // Setting the service UUID
     BT_GATT_CHARACTERISTIC(
         &ble_custom_characteristic_uuid.uuid,  // Setting the characteristic UUID
-        BT_GATT_CHRC_READ | BT_GATT_CHRC_WRITE,  // Possible operations
-        BT_GATT_PERM_READ | BT_GATT_PERM_WRITE,  // Permissions that connecting devices have
+        BT_GATT_CHRC_READ,  // Possible operations
+        BT_GATT_PERM_READ,  // Permissions that connecting devices have
         ble_custom_characteristic_read_cb,     // Callback for when this characteristic is read from
         ble_custom_characteristic_write_cb,    // Callback for when this characteristic is written to
         ble_custom_characteristic_user_data    // Initial data stored in this characteristic
         ),
       BT_GATT_CHARACTERISTIC(
       &ble_custom_characteristic_uuid2.uuid,  // Setting the characteristic UUID
-      BT_GATT_CHRC_READ | BT_GATT_CHRC_WRITE,  // Possible operations
-      BT_GATT_PERM_READ | BT_GATT_PERM_WRITE,  // Permissions that connecting devices have
+      BT_GATT_CHRC_WRITE,  // Possible operations
+      BT_GATT_PERM_WRITE,  // Permissions that connecting devices have
       ble_custom_characteristic2_read_cb,     // Callback for when this characteristic is read from
       ble_custom_characteristic2_write_cb,    // Callback for when this characteristic is written to
-      ble_custom_characteristic_user_data2    // Initial data stored in this characteristic
+      ble_custom_characteristic_user_data    // Initial data stored in this characteristic
         ),
 );
 
@@ -124,7 +124,6 @@ static ssize_t ble_custom_characteristic_write_cb(struct bt_conn* conn, const st
 static ssize_t ble_custom_characteristic2_read_cb(struct bt_conn* conn, const struct bt_gatt_attr* attr,
                                                  void* buf, uint16_t len, uint16_t offset) {
   char* value = attr->user_data;
-  value[0] = '0'; // Places a 0 in the first space regardless of data
   return bt_gatt_attr_read(conn, attr, buf, len, offset, value, strlen(value));
 }
 
