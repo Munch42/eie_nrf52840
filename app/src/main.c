@@ -30,8 +30,41 @@ void lv_button_callback(lv_event_t *event) {
   LED_toggle(led);
 }
 
-static lv_indev_t* touch_indev;
-static lv_obj_t* circle = NULL;
+#define CANVAS_WIDTH  240
+#define CANVAS_HEIGHT 200
+
+// Canvas buffer the size of the screen
+static uint8_t canvas_buf[CANVAS_WIDTH * CANVAS_HEIGHT];
+
+static lv_indev_t * touch_indev;
+static lv_point_t last_point;
+static bool drawing = false;
+static lv_obj_t * canvas;
+
+static void draw_line(int x1, int y1, int x2, int y2)
+{
+    // Create a temporary "layer" to draw on the canvas (LVGL v9 style)
+    lv_layer_t layer;
+    lv_canvas_init_layer(canvas, &layer);
+
+    // Configure the line settings
+    lv_draw_line_dsc_t dsc;
+    lv_draw_line_dsc_init(&dsc);
+    
+    dsc.p1.x = x1;
+    dsc.p1.y = y1;
+    dsc.p2.x = x2;
+    dsc.p2.y = y2;
+    
+    dsc.color = lv_color_hex(0x000000); // Black line
+    dsc.width = 3;
+
+    // Perform the draw operation onto the layer
+    lv_draw_line(&layer, &dsc);
+
+    // Apply the layer changes back to the canvas buffer
+    lv_canvas_finish_layer(canvas, &layer);
+}
 
 int main(void) {
   if (!device_is_ready(display_dev)) {
@@ -71,6 +104,19 @@ int main(void) {
     lv_obj_add_event_cb(ui_btn, lv_button_callback, LV_EVENT_CLICKED, data_obj);
   }*/
 
+  canvas = lv_canvas_create(screen);
+  lv_canvas_set_buffer(canvas,
+                      canvas_buf,
+                      CANVAS_WIDTH,
+                      CANVAS_HEIGHT,
+                      LV_COLOR_FORMAT_L8);
+
+  lv_obj_center(canvas);
+
+  lv_canvas_fill_bg(canvas,
+                  lv_color_hex(0xFFFFFF),
+                  LV_OPA_COVER);
+
   display_blanking_off(display_dev);
 
   touch_indev = lv_indev_get_next(NULL);
@@ -80,25 +126,26 @@ int main(void) {
 
     if (touch_indev) {
         lv_point_t point;
-        lv_indev_state_t state = lv_indev_get_state(touch_indev);
+        lv_indev_state_t state =
+            lv_indev_get_state(touch_indev);
+
+        lv_indev_get_point(touch_indev, &point);
 
         if (state == LV_INDEV_STATE_PRESSED) {
-            lv_indev_get_point(touch_indev, &point);
 
-            if (!circle) {
-                circle = lv_obj_create(screen);
-                lv_obj_set_size(circle, 15, 15);
-                lv_obj_set_style_radius(circle, LV_RADIUS_CIRCLE, 0);
-                lv_obj_set_style_bg_color(circle,
-                lv_color_hex(0xFF0000), 0);
+            if (!drawing) {
+                drawing = true;
+                last_point = point;
+            } else {
+                draw_line(last_point.x,
+                          last_point.y,
+                          point.x,
+                          point.y);
+
+                last_point = point;
             }
-            
-            lv_obj_set_pos(circle, point.x - 7, point.y - 7);
         } else {
-            if (circle) {
-                lv_obj_del(circle);
-                circle = NULL;
-            }
+            drawing = false;
         }
     }
 
