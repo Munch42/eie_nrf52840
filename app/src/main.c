@@ -30,20 +30,8 @@ void lv_button_callback(lv_event_t *event) {
   LED_toggle(led);
 }
 
-static void draw_dot(lv_obj_t * parent, int x, int y)
-{
-    lv_obj_t * dot = lv_obj_create(parent);
-
-    lv_obj_set_size(dot, 6, 6);
-    lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(dot, lv_color_hex(0x0000FF), 0);
-    lv_obj_set_style_border_width(dot, 0, 0);
-
-    lv_obj_set_pos(dot, x - 3, y - 3);
-}
-
 static lv_indev_t* touch_indev;
-static lv_point_t last_point = { -1, -1 };
+static lv_obj_t* circle = NULL;
 
 int main(void) {
   if (!device_is_ready(display_dev)) {
@@ -97,14 +85,20 @@ int main(void) {
         if (state == LV_INDEV_STATE_PRESSED) {
             lv_indev_get_point(touch_indev, &point);
 
-            if (point.x != last_point.x || point.y != last_point.y) {
-              draw_dot(screen, point.x, point.y);
-              last_point = point;
+            if (!circle) {
+                circle = lv_obj_create(screen);
+                lv_obj_set_size(circle, 15, 15);
+                lv_obj_set_style_radius(circle, LV_RADIUS_CIRCLE, 0);
+                lv_obj_set_style_bg_color(circle,
+                lv_color_hex(0xFF0000), 0);
             }
+            
+            lv_obj_set_pos(circle, point.x - 7, point.y - 7);
         } else {
-            // If the screen was not pressed/is released, reset the last point
-            last_point.x = -1;
-            last_point.y = -1;
+            if (circle) {
+                lv_obj_del(circle);
+                circle = NULL;
+            }
         }
     }
 
