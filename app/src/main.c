@@ -21,6 +21,7 @@
 
 #define SLEEP_MS 1
 #define DOT_SIZE 30
+#define DOT_CLICKABLE_BUFFER 10
 
 static const struct device *display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
 static lv_obj_t *screen = NULL; 
@@ -32,10 +33,28 @@ void lv_button_callback(lv_event_t *event) {
   LED_toggle(led);
 }
 
-static lv_indev_t * touch_indev;
+// The event to call when the dot has been clicked
+static void dot_event_cb(lv_event_t * e) {
+    lv_obj_t * target = lv_event_get_target(e); // The dot that was clicked
+
+    // Get screen dimensions
+    int32_t screen_w = lv_display_get_horizontal_resolution(NULL);
+    int32_t screen_h = lv_display_get_vertical_resolution(NULL);
+    int32_t dot_size = lv_obj_get_width(target);
+
+    // Calculate new random position
+    int rand_x = rand() % (screen_w - dot_size);
+    int rand_y = rand() % (screen_h - dot_size);
+
+    // Move and change the colour
+    lv_obj_set_pos(target, rand_x, rand_y);
+    lv_obj_set_style_bg_color(target, lv_color_make(rand() % 256, rand() % 256, rand() % 256), 0);
+}
+
+//static lv_indev_t * touch_indev;
 
 static lv_obj_t* dot;
-static bool pressed = false; 
+//static bool pressed = false; 
 
 int main(void) {
   if (!device_is_ready(display_dev)) {
@@ -91,16 +110,23 @@ int main(void) {
   lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
 
   // Put it at a default position
-  lv_obj_set_pos(dot, 0, 0);
+  lv_obj_set_pos(dot, 30, 60);
+
+  // Extend the area around the dot that is clickable to add a buffer for game smoothness
+  // This allows the native event callback functionality to see that there is a "buffer" around it
+  lv_obj_set_ext_click_area(dot, DOT_CLICKABLE_BUFFER);
+
+  // Add the clicked callback
+  lv_obj_add_event_cb(dot, dot_event_cb, LV_EVENT_CLICKED, NULL);
 
   display_blanking_off(display_dev);
 
-  touch_indev = lv_indev_get_next(NULL);
+  //touch_indev = lv_indev_get_next(NULL);
 
   while (1) {
     lv_timer_handler();
 
-    if (touch_indev) {
+    /*if (touch_indev) {
         lv_indev_state_t state =
             lv_indev_get_state(touch_indev);
         lv_point_t touch_point;
@@ -136,7 +162,7 @@ int main(void) {
         } else if (state == LV_INDEV_STATE_RELEASED) {
           pressed = false;
         }
-    }
+    }*/
 
     k_msleep(SLEEP_MS);
   }
