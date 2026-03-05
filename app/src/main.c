@@ -6,6 +6,7 @@
 // west build -b nrf52840dk/nrf52840 --shield=adafruit_2_8_tft_touch_v2 app
 
 #include <inttypes.h>
+#include <stdlib.h>
 
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
@@ -19,6 +20,7 @@
 #include "lv_data_obj.h"
 
 #define SLEEP_MS 1
+#define DOT_SIZE 30
 
 static const struct device *display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
 static lv_obj_t *screen = NULL; 
@@ -30,41 +32,10 @@ void lv_button_callback(lv_event_t *event) {
   LED_toggle(led);
 }
 
-#define CANVAS_WIDTH  240
-#define CANVAS_HEIGHT 200
-
-// Canvas buffer the size of the screen
-static uint8_t canvas_buf[CANVAS_WIDTH * CANVAS_HEIGHT];
-
 static lv_indev_t * touch_indev;
-static lv_point_t last_point;
-static bool drawing = false;
-static lv_obj_t * canvas;
 
-static void draw_line(int x1, int y1, int x2, int y2)
-{
-    // Create a temporary "layer" to draw on the canvas (LVGL v9 style)
-    lv_layer_t layer;
-    lv_canvas_init_layer(canvas, &layer);
-
-    // Configure the line settings
-    lv_draw_line_dsc_t dsc;
-    lv_draw_line_dsc_init(&dsc);
-    
-    dsc.p1.x = x1;
-    dsc.p1.y = y1;
-    dsc.p2.x = x2;
-    dsc.p2.y = y2;
-    
-    dsc.color = lv_color_hex(0x000000); // Black line
-    dsc.width = 3;
-
-    // Perform the draw operation onto the layer
-    lv_draw_line(&layer, &dsc);
-
-    // Apply the layer changes back to the canvas buffer
-    lv_canvas_finish_layer(canvas, &layer);
-}
+static lv_obj_t* dot;
+static bool pressed = false; 
 
 int main(void) {
   if (!device_is_ready(display_dev)) {
@@ -104,18 +75,23 @@ int main(void) {
     lv_obj_add_event_cb(ui_btn, lv_button_callback, LV_EVENT_CLICKED, data_obj);
   }*/
 
-  canvas = lv_canvas_create(screen);
-  lv_canvas_set_buffer(canvas,
-                      canvas_buf,
-                      CANVAS_WIDTH,
-                      CANVAS_HEIGHT,
-                      LV_COLOR_FORMAT_L8);
+  // Create the dot object
+  dot = lv_obj_create(screen);
 
-  lv_obj_center(canvas);
+  // Make it a circle
+  lv_obj_set_size(dot, DOT_SIZE, DOT_SIZE);
+  lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
 
-  lv_canvas_fill_bg(canvas,
-                  lv_color_hex(0xFFFFFF),
-                  LV_OPA_COVER);
+  lv_obj_set_style_pad_all(dot, 0, 0);
+  lv_obj_set_style_border_width(dot, 0, 0);
+  lv_obj_set_style_outline_width(dot, 0, 0);
+
+  // Style it red initially
+  lv_obj_set_style_bg_color(dot, lv_color_hex(0xFF0000), 0);
+  lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+
+  // Put it at a default position
+  lv_obj_set_pos(dot, 0, 0);
 
   display_blanking_off(display_dev);
 
@@ -125,27 +101,40 @@ int main(void) {
     lv_timer_handler();
 
     if (touch_indev) {
-        lv_point_t point;
         lv_indev_state_t state =
             lv_indev_get_state(touch_indev);
+        lv_point_t touch_point;
+        lv_indev_get_point(touch_indev, &touch_point); // Get the coordinates of where they pressed in an object.
 
-        lv_indev_get_point(touch_indev, &point);
+        if (state == LV_INDEV_STATE_PRESSED && !pressed) {
+          // Current coords:
+          int32_t dot_x = lv_obj_get_x(dot);
+          int32_t dot_y = lv_obj_get_y(dot);
 
-        if (state == LV_INDEV_STATE_PRESSED) {
+          int buffer = 10;
+          if (touch_point.x >= (dot_x - buffer) && touch_point.x <= (dot_x + DOT_SIZE + buffer) &&
+              touch_point.y >= (dot_y - buffer) && touch_point.y <= (dot_y + DOT_SIZE + buffer)) {
+            // Then the dot has been pressed within the buffer so count it as a hit.
+            pressed = true;
 
-            if (!drawing) {
-                drawing = true;
-                last_point = point;
-            } else {
-                draw_line(last_point.x,
-                          last_point.y,
-                          point.x,
-                          point.y);
+            int32_t screen_w = lv_display_get_horizontal_resolution(NULL);
+            int32_t screen_h = lv_display_get_vertical_resolution(NULL);
 
-                last_point = point;
-            }
-        } else {
-            drawing = false;
+            // Generate coordinates safely
+            int rand_x = rand() % (screen_w - DOT_SIZE);
+            int rand_y = rand() % (screen_h - DOT_SIZE);
+
+            // Change the colour randomly
+            lv_color_t random_color = lv_color_make(rand() % 256, rand() % 256, rand() % 256);
+            lv_obj_set_style_bg_color(dot, random_color, 0);
+
+            //printk("Screen: %dx%d | New Dot X:%d, Y:%d\n", screen_w, screen_h, rand_x, rand_y);
+            
+            // Move the object
+            lv_obj_set_pos(dot, rand_x, rand_y);
+          }
+        } else if (state == LV_INDEV_STATE_RELEASED) {
+          pressed = false;
         }
     }
 
