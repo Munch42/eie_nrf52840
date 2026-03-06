@@ -22,6 +22,24 @@
 #define SLEEP_MS 1
 #define DOT_SIZE 30
 #define DOT_CLICKABLE_BUFFER 10
+#define MIN_DOT_SIZE 5
+
+#define BG_RED_CHANNEL 191
+#define BG_GREEN_CHANNEL 33
+#define BG_BLUE_CHANNEL 186
+#define BG_DIFF_THRESHOLD 50
+
+#define MAX_DOT_SCORE 300
+#define TIMER_PERIOD 250
+
+static lv_timer_t * shrink_timer;
+static uint32_t current_timer_period = TIMER_PERIOD;
+
+static lv_obj_t * score_label;
+static int score = 0;
+static int current_thousand_barrier = 0;
+static int nextScore = MAX_DOT_SCORE;
+static lv_obj_t * game_over_label;
 
 static const struct device *display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
 static lv_obj_t *screen = NULL; 
@@ -37,18 +55,74 @@ void lv_button_callback(lv_event_t *event) {
 static void dot_event_cb(lv_event_t * e) {
     lv_obj_t * target = lv_event_get_target(e); // The dot that was clicked
 
+    if (!lv_obj_has_flag(game_over_label, LV_OBJ_FLAG_HIDDEN)) {
+        score = 0;
+        current_timer_period = TIMER_PERIOD;
+        current_thousand_barrier = 0;
+        
+        lv_timer_set_period(shrink_timer, TIMER_PERIOD);
+        lv_timer_resume(shrink_timer);
+        lv_obj_add_flag(game_over_label, LV_OBJ_FLAG_HIDDEN);
+    }
+
     // Get screen dimensions
     int32_t screen_w = lv_display_get_horizontal_resolution(NULL);
     int32_t screen_h = lv_display_get_vertical_resolution(NULL);
-    int32_t dot_size = lv_obj_get_width(target);
 
+    // Since the dot size is reset to max when it moves, just use DOT_SIZE for it instead of 
+    // int32_t dot_size = lv_obj_get_width(target);
     // Calculate new random position
-    int rand_x = rand() % (screen_w - dot_size);
-    int rand_y = rand() % (screen_h - dot_size);
+    int rand_x = rand() % (screen_w - DOT_SIZE);
+    int rand_y = rand() % (screen_h - DOT_SIZE);
+
+    lv_obj_set_size(target, DOT_SIZE, DOT_SIZE);
 
     // Move and change the colour
     lv_obj_set_pos(target, rand_x, rand_y);
-    lv_obj_set_style_bg_color(target, lv_color_make(rand() % 256, rand() % 256, rand() % 256), 0);
+
+    uint8_t red_val, green_val, blue_val;
+    uint8_t red_diff, green_diff, blue_diff;
+    do {
+      red_val = rand() % 256;
+      green_val = rand() % 256;
+      blue_val = rand() % 256;
+
+      red_diff = abs(BG_RED_CHANNEL - red_val);
+      green_diff = abs(BG_GREEN_CHANNEL - green_val);
+      blue_diff = abs(BG_BLUE_CHANNEL- blue_val);
+    } while ((red_diff + green_diff + blue_diff) < BG_DIFF_THRESHOLD);
+
+    score += nextScore;
+    nextScore = MAX_DOT_SCORE;
+  
+    lv_obj_set_style_bg_color(target, lv_color_make(red_val, green_val, blue_val), 0);
+    lv_label_set_text_fmt(score_label, "Score: %d", score);
+}
+
+static void shrink_timer_cb(lv_timer_t * timer) {
+    lv_obj_t * obj = (lv_obj_t *)lv_timer_get_user_data(timer);
+  
+    int32_t curr_size = lv_obj_get_width(obj);
+
+    if (curr_size > MIN_DOT_SIZE) {
+        int32_t new_size = curr_size - 1;
+        lv_obj_set_size(obj, new_size, new_size);
+        nextScore -= MAX_DOT_SCORE / (DOT_SIZE - MIN_DOT_SIZE);
+    } else {
+      lv_obj_set_style_bg_color(obj, lv_color_hex(0x555555), 0); // Turn grey if "dead"
+
+      // Show the game over message
+      lv_obj_remove_flag(game_over_label, LV_OBJ_FLAG_HIDDEN);
+        
+      // Pause the timer so it stops running the callback
+      lv_timer_pause(timer);
+    }
+
+    if (score >= (current_thousand_barrier + 1000) && current_timer_period > 50) {
+      current_thousand_barrier += 1000;
+      current_timer_period -= 25;
+      lv_timer_set_period(timer, current_timer_period);
+    }
 }
 
 //static lv_indev_t * touch_indev;
@@ -94,8 +168,39 @@ int main(void) {
     lv_obj_add_event_cb(ui_btn, lv_button_callback, LV_EVENT_CLICKED, data_obj);
   }*/
 
+  game_over_label = lv_label_create(screen);
+  lv_label_set_text(game_over_label, "GAME OVER\nClick the grey dot to restart!");
+  lv_obj_set_style_text_align(game_over_label, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_style_text_color(game_over_label, lv_color_hex(0xFFFFFF), 0);
+  lv_obj_set_style_text_font(game_over_label, &lv_font_montserrat_14, 0); // Slightly larger font
+
+  // Place it exactly in the center
+  lv_obj_center(game_over_label);
+
+  // Hide it until death
+  lv_obj_add_flag(game_over_label, LV_OBJ_FLAG_HIDDEN);
+
+  // Set the screen background colour
+  lv_obj_set_style_bg_color(screen, lv_color_make(BG_RED_CHANNEL, BG_GREEN_CHANNEL, BG_BLUE_CHANNEL), 0);
+
+  // Create a label on the active screen
+  score_label = lv_label_create(screen);
+
+  // Set the initial text
+  lv_label_set_text(score_label, "Score: 0");
+
+  // Style it so it's readable against your purple background
+  lv_obj_set_style_text_color(score_label, lv_color_hex(0xFFFFFF), 0); // White text
+  lv_obj_set_style_text_font(score_label, &lv_font_montserrat_14, 0);   // Standard font
+
+  // Align it to the top center with a 10px margin from the top
+  lv_obj_align(score_label, LV_ALIGN_TOP_MID, 0, 10);
+
   // Create the dot object
   dot = lv_obj_create(screen);
+
+  // Create the timer to run every 250ms
+  shrink_timer = lv_timer_create(shrink_timer_cb, TIMER_PERIOD, dot);
 
   // Make it a circle
   lv_obj_set_size(dot, DOT_SIZE, DOT_SIZE);
