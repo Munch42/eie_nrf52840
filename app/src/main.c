@@ -41,6 +41,8 @@ static int current_thousand_barrier = 0;
 static int nextScore = MAX_DOT_SCORE;
 static lv_obj_t * game_over_label;
 
+static int high_score = 0;
+
 static const struct device *display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
 static lv_obj_t *screen = NULL; 
 
@@ -110,15 +112,24 @@ static void shrink_timer_cb(lv_timer_t * timer) {
         nextScore -= MAX_DOT_SCORE / (DOT_SIZE - MIN_DOT_SIZE);
     } else {
       lv_obj_set_style_bg_color(obj, lv_color_hex(0x555555), 0); // Turn grey if "dead"
+      lv_obj_set_size(obj, DOT_SIZE, DOT_SIZE);
 
       // Show the game over message
       lv_obj_remove_flag(game_over_label, LV_OBJ_FLAG_HIDDEN);
         
       // Pause the timer so it stops running the callback
       lv_timer_pause(timer);
+
+      if (score > high_score) {
+        high_score = score;
+      }
+
+      lv_label_set_text_fmt(game_over_label, 
+            "GAME OVER\nScore: %d\nHigh Score: %d\n\nClick the grey dot to restart!", 
+            score, high_score);
     }
 
-    if (score >= (current_thousand_barrier + 1000) && current_timer_period > 50) {
+    if (score >= (current_thousand_barrier + 1000) && current_timer_period > 25) {
       current_thousand_barrier += 1000;
       current_timer_period -= 25;
       lv_timer_set_period(timer, current_timer_period);
